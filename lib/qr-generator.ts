@@ -89,6 +89,7 @@ export function downloadFile(dataUrl: string, filename: string, format: ExportFo
 export function dataUrlToBlob(dataUrl: string): Blob {
   const arr = dataUrl.split(',');
   const mimeMatch = arr[0].match(/:(.*?);/);
+  // Fix TypeScript error: Check if mimeMatch is null before accessing array index
   const mime = mimeMatch ? mimeMatch[1] : 'image/png';
   
   if (!arr[1]) {

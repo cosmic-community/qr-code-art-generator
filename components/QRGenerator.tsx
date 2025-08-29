@@ -86,13 +86,23 @@ export default function QRGenerator({ templates, colorPalettes }: QRGeneratorPro
     setCurrentStep('customize')
   }
 
-  // Handle template selection
+  // Handle template selection with proper color parsing
   const handleTemplateSelect = (template: QRTemplate) => {
+    // Parse colors JSON string safely
+    let colors = { foreground: '#000000', background: '#ffffff', accent: undefined }
+    try {
+      if (template.metadata.colors && typeof template.metadata.colors === 'string') {
+        colors = JSON.parse(template.metadata.colors)
+      }
+    } catch (error) {
+      console.warn('Failed to parse template colors:', error)
+    }
+
     const newConfig = {
       ...config,
-      foregroundColor: template.metadata.colors.foreground,
-      backgroundColor: template.metadata.colors.background,
-      pattern: template.metadata.pattern,
+      foregroundColor: colors.foreground,
+      backgroundColor: colors.background,
+      pattern: template.metadata.pattern?.value || template.metadata.pattern,
     }
     setConfig(newConfig)
   }

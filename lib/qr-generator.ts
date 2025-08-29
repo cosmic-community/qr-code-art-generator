@@ -340,7 +340,7 @@ function applyRoundedCorners(ctx: CanvasRenderingContext2D, width: number, heigh
   ctx.shadowOffsetY = 2;
 }
 
-// Enhanced dot style effect
+// Enhanced dot style effect with proper undefined checks
 function applyDotStyle(ctx: CanvasRenderingContext2D, width: number, height: number, config: QRCodeConfig): void {
   // Get image data to analyze QR pattern
   const imageData = ctx.getImageData(0, 0, width, height);
@@ -362,18 +362,22 @@ function applyDotStyle(ctx: CanvasRenderingContext2D, width: number, height: num
   for (let x = 0; x < width; x += spacing) {
     for (let y = 0; y < height; y += spacing) {
       const pixelIndex = (y * width + x) * 4;
-      const r = data[pixelIndex];
-      const g = data[pixelIndex + 1];
-      const b = data[pixelIndex + 2];
       
-      // Check if r, g, b are defined before using them
-      if (r !== undefined && g !== undefined && b !== undefined) {
-        // If pixel is dark (part of QR code)
-        const brightness = (r + g + b) / 3;
-        if (brightness < 128) {
-          ctx.beginPath();
-          ctx.arc(x + dotSize/2, y + dotSize/2, dotSize/2, 0, Math.PI * 2);
-          ctx.fill();
+      // FIXED: Add proper bounds checking and undefined validation
+      if (pixelIndex >= 0 && pixelIndex + 2 < data.length) {
+        const r = data[pixelIndex];
+        const g = data[pixelIndex + 1];
+        const b = data[pixelIndex + 2];
+        
+        // Check if r, g, b are defined before using them
+        if (r !== undefined && g !== undefined && b !== undefined) {
+          // If pixel is dark (part of QR code)
+          const brightness = (r + g + b) / 3;
+          if (brightness < 128) {
+            ctx.beginPath();
+            ctx.arc(x + dotSize/2, y + dotSize/2, dotSize/2, 0, Math.PI * 2);
+            ctx.fill();
+          }
         }
       }
     }

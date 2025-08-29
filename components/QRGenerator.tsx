@@ -16,6 +16,7 @@ export default function QRGenerator({ templates, colorPalettes }: QRGeneratorPro
   const [qrDataUrl, setQrDataUrl] = useState('')
   const [qrSvg, setQrSvg] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   
   const [config, setConfig] = useState<QRCodeConfig>({
     text: '',
@@ -26,37 +27,47 @@ export default function QRGenerator({ templates, colorPalettes }: QRGeneratorPro
     margin: 2,
   })
 
-  // Debounced QR code generation
+  // Debounced QR code generation with better error handling
   const generateQR = useCallback(async (currentConfig: QRCodeConfig) => {
     if (!currentConfig.text || !isValidUrl(currentConfig.text)) {
       setQrDataUrl('')
       setQrSvg('')
+      setError(null)
       return
     }
 
     setIsGenerating(true)
+    setError(null)
+    
     try {
+      console.log('Generating QR code for:', currentConfig.text)
+      
       const [dataUrl, svg] = await Promise.all([
         generateQRCode(currentConfig),
         generateQRCodeSVG(currentConfig)
       ])
       
+      console.log('QR code generated successfully')
       setQrDataUrl(dataUrl)
       setQrSvg(svg)
     } catch (error) {
       console.error('Error generating QR code:', error)
+      setError(error instanceof Error ? error.message : 'Failed to generate QR code')
+      setQrDataUrl('')
+      setQrSvg('')
     } finally {
       setIsGenerating(false)
     }
   }, [])
 
-  // Update config when URL changes
+  // Update config when URL changes with better validation
   useEffect(() => {
-    const isValid = isValidUrl(url)
+    const trimmedUrl = url.trim()
+    const isValid = trimmedUrl.length > 0 && isValidUrl(trimmedUrl)
     setIsValidInput(isValid)
     
     if (isValid) {
-      const formattedUrl = formatUrl(url)
+      const formattedUrl = formatUrl(trimmedUrl)
       const newConfig = { ...config, text: formattedUrl }
       setConfig(newConfig)
       
@@ -65,6 +76,7 @@ export default function QRGenerator({ templates, colorPalettes }: QRGeneratorPro
     } else {
       setQrDataUrl('')
       setQrSvg('')
+      setError(null)
       setConfig({ ...config, text: '' })
     }
   }, [url, generateQR])
@@ -98,9 +110,12 @@ export default function QRGenerator({ templates, colorPalettes }: QRGeneratorPro
     }
   }
 
-  // Handle download
+  // Handle download with better error handling
   const handleDownload = async (format: ExportFormat) => {
-    if (!qrDataUrl && !qrSvg) return
+    if (!qrDataUrl && !qrSvg) {
+      console.warn('No QR code available for download')
+      return
+    }
     
     try {
       let downloadUrl = qrDataUrl
@@ -134,6 +149,7 @@ export default function QRGenerator({ templates, colorPalettes }: QRGeneratorPro
       }
     } catch (error) {
       console.error('Error downloading QR code:', error)
+      setError(error instanceof Error ? error.message : 'Failed to download QR code')
     }
   }
 
@@ -148,6 +164,18 @@ export default function QRGenerator({ templates, colorPalettes }: QRGeneratorPro
             onChange={setUrl}
             isValid={isValidInput}
           />
+
+          {/* Error Display */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-red-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-red-800 text-sm">{error}</span>
+              </div>
+            </div>
+          )}
 
           {/* Template Selector */}
           {templates.length > 0 && (
@@ -183,6 +211,7 @@ export default function QRGenerator({ templates, colorPalettes }: QRGeneratorPro
             isGenerating={isGenerating}
             isValidUrl={isValidInput}
             onDownload={handleDownload}
+            error={error}
           />
         </div>
       </div>

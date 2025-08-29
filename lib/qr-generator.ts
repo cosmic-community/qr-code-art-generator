@@ -1,7 +1,7 @@
 import QRCode from 'qrcode';
 import type { QRCodeConfig, ExportFormat } from '@/types';
 
-// Generate QR code data URL with enhanced error handling
+// Generate QR code data URL with enhanced error handling and artistic styles
 export async function generateQRCode(config: QRCodeConfig): Promise<string> {
   try {
     // Validate input
@@ -22,8 +22,17 @@ export async function generateQRCode(config: QRCodeConfig): Promise<string> {
     };
 
     console.log('Generating QR code with options:', options);
-    const dataUrl = await QRCode.toDataURL(config.text, options);
+    let dataUrl = await QRCode.toDataURL(config.text, options);
     console.log('QR code generated successfully, data URL length:', dataUrl.length);
+    
+    // Apply artistic effects based on style
+    if (config.style && config.style !== 'square') {
+      try {
+        dataUrl = await applyArtisticEffects(dataUrl, config.style, config);
+      } catch (error) {
+        console.warn('Failed to apply artistic effects, using base QR code:', error);
+      }
+    }
     
     return dataUrl;
   } catch (error) {
@@ -32,7 +41,7 @@ export async function generateQRCode(config: QRCodeConfig): Promise<string> {
   }
 }
 
-// Generate QR code SVG with enhanced error handling
+// Generate QR code SVG with enhanced error handling and artistic styles
 export async function generateQRCodeSVG(config: QRCodeConfig): Promise<string> {
   try {
     // Validate input
@@ -50,10 +59,15 @@ export async function generateQRCodeSVG(config: QRCodeConfig): Promise<string> {
       width: config.size || 400,
     };
 
-    const svgString = await QRCode.toString(config.text, { 
+    let svgString = await QRCode.toString(config.text, { 
       ...options, 
       type: 'svg' 
     });
+    
+    // Apply SVG-specific artistic effects
+    if (config.style && config.style !== 'square') {
+      svgString = applySVGArtisticEffects(svgString, config.style, config);
+    }
     
     console.log('QR code SVG generated successfully');
     return svgString;
@@ -176,10 +190,11 @@ export function dataUrlToBlob(dataUrl: string): Blob {
   }
 }
 
-// Apply artistic effects using CSS filters and DOM manipulation
+// Enhanced artistic effects application for PNG/Canvas
 export async function applyArtisticEffects(
   dataUrl: string, 
-  style: string
+  style: string,
+  config: QRCodeConfig
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     try {
@@ -203,13 +218,13 @@ export async function applyArtisticEffects(
           // Apply style-specific effects
           switch (style) {
             case 'rounded':
-              applyRoundedCorners(ctx, canvas.width, canvas.height);
+              applyRoundedCorners(ctx, canvas.width, canvas.height, config);
               break;
             case 'dots':
-              applyDotOverlay(ctx, canvas.width, canvas.height);
+              applyDotStyle(ctx, canvas.width, canvas.height, config);
               break;
             case 'artistic':
-              applyGradientOverlay(ctx, canvas.width, canvas.height);
+              applyArtisticStyle(ctx, canvas.width, canvas.height, config);
               break;
             default:
               // No special effects for 'square' style
@@ -236,9 +251,70 @@ export async function applyArtisticEffects(
   });
 }
 
-// Apply rounded corners using canvas clipping
-function applyRoundedCorners(ctx: CanvasRenderingContext2D, width: number, height: number): void {
-  const radius = Math.min(width, height) * 0.1;
+// Apply SVG artistic effects
+function applySVGArtisticEffects(svgString: string, style: string, config: QRCodeConfig): string {
+  try {
+    let modifiedSvg = svgString;
+    
+    switch (style) {
+      case 'rounded':
+        // Add rounded corners to SVG rectangles
+        modifiedSvg = modifiedSvg.replace(
+          /<rect([^>]*)>/g, 
+          '<rect$1 rx="2" ry="2">'
+        );
+        break;
+        
+      case 'dots':
+        // Convert rectangles to circles
+        modifiedSvg = modifiedSvg.replace(
+          /<rect x="(\d+)" y="(\d+)" width="(\d+)" height="(\d+)"([^>]*)\/>/g,
+          (match, x, y, width, height, attrs) => {
+            const centerX = parseInt(x) + parseInt(width) / 2;
+            const centerY = parseInt(y) + parseInt(height) / 2;
+            const radius = Math.min(parseInt(width), parseInt(height)) / 2;
+            return `<circle cx="${centerX}" cy="${centerY}" r="${radius}"${attrs}/>`;
+          }
+        );
+        break;
+        
+      case 'artistic':
+        // Add gradient and shadow effects
+        const gradientId = 'qr-gradient-' + Math.random().toString(36).substr(2, 9);
+        const shadowId = 'qr-shadow-' + Math.random().toString(36).substr(2, 9);
+        
+        const defs = `
+          <defs>
+            <linearGradient id="${gradientId}" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:${config.foregroundColor};stop-opacity:1" />
+              <stop offset="100%" style="stop-color:${adjustColorBrightness(config.foregroundColor, -20)};stop-opacity:1" />
+            </linearGradient>
+            <filter id="${shadowId}" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="2" dy="2" stdDeviation="1" flood-color="${config.foregroundColor}" flood-opacity="0.3"/>
+            </filter>
+          </defs>
+        `;
+        
+        modifiedSvg = modifiedSvg.replace('<svg', defs + '<svg');
+        modifiedSvg = modifiedSvg.replace(
+          /fill="([^"]*)" /g,
+          `fill="url(#${gradientId})" filter="url(#${shadowId})" `
+        );
+        break;
+    }
+    
+    return modifiedSvg;
+  } catch (error) {
+    console.error('Error applying SVG artistic effects:', error);
+    return svgString;
+  }
+}
+
+// Apply rounded corners using canvas clipping with enhanced styling
+function applyRoundedCorners(ctx: CanvasRenderingContext2D, width: number, height: number, config: QRCodeConfig): void {
+  const radius = Math.min(width, height) * 0.08;
+  
+  // Create rounded rectangle mask
   ctx.globalCompositeOperation = 'destination-in';
   ctx.beginPath();
   
@@ -256,34 +332,98 @@ function applyRoundedCorners(ctx: CanvasRenderingContext2D, width: number, heigh
   
   ctx.fill();
   ctx.globalCompositeOperation = 'source-over';
+  
+  // Add subtle shadow effect
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
+  ctx.shadowBlur = 4;
+  ctx.shadowOffsetX = 2;
+  ctx.shadowOffsetY = 2;
 }
 
-// Apply dot overlay effect
-function applyDotOverlay(ctx: CanvasRenderingContext2D, width: number, height: number): void {
-  ctx.globalCompositeOperation = 'multiply';
-  const dotSize = Math.max(2, Math.floor(width / 100));
+// Enhanced dot style effect
+function applyDotStyle(ctx: CanvasRenderingContext2D, width: number, height: number, config: QRCodeConfig): void {
+  // Get image data to analyze QR pattern
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const data = imageData.data;
   
-  for (let x = 0; x < width; x += dotSize * 2) {
-    for (let y = 0; y < height; y += dotSize * 2) {
-      ctx.beginPath();
-      ctx.arc(x + dotSize, y + dotSize, dotSize / 2, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
-      ctx.fill();
+  // Clear canvas
+  ctx.clearRect(0, 0, width, height);
+  
+  // Redraw background
+  ctx.fillStyle = config.backgroundColor;
+  ctx.fillRect(0, 0, width, height);
+  
+  // Apply dot pattern based on original QR data
+  const dotSize = Math.max(3, Math.floor(width / 50));
+  const spacing = dotSize * 2;
+  
+  ctx.fillStyle = config.foregroundColor;
+  
+  for (let x = 0; x < width; x += spacing) {
+    for (let y = 0; y < height; y += spacing) {
+      const pixelIndex = (y * width + x) * 4;
+      const r = data[pixelIndex];
+      const g = data[pixelIndex + 1];
+      const b = data[pixelIndex + 2];
+      
+      // If pixel is dark (part of QR code)
+      const brightness = (r + g + b) / 3;
+      if (brightness < 128) {
+        ctx.beginPath();
+        ctx.arc(x + dotSize/2, y + dotSize/2, dotSize/2, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
   }
-  ctx.globalCompositeOperation = 'source-over';
 }
 
-// Apply gradient overlay
-function applyGradientOverlay(ctx: CanvasRenderingContext2D, width: number, height: number): void {
-  ctx.globalCompositeOperation = 'overlay';
+// Enhanced artistic style with gradients and effects
+function applyArtisticStyle(ctx: CanvasRenderingContext2D, width: number, height: number, config: QRCodeConfig): void {
+  // Create gradient effect
   const gradient = ctx.createLinearGradient(0, 0, width, height);
-  gradient.addColorStop(0, 'rgba(255, 255, 255, 0.1)');
-  gradient.addColorStop(0.5, 'rgba(128, 128, 128, 0.05)');
-  gradient.addColorStop(1, 'rgba(0, 0, 0, 0.1)');
+  const baseColor = config.foregroundColor;
+  const lightColor = adjustColorBrightness(baseColor, 30);
+  const darkColor = adjustColorBrightness(baseColor, -30);
+  
+  gradient.addColorStop(0, lightColor);
+  gradient.addColorStop(0.5, baseColor);
+  gradient.addColorStop(1, darkColor);
+  
+  // Apply gradient overlay
+  ctx.globalCompositeOperation = 'multiply';
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
+  
+  // Add subtle texture overlay
+  ctx.globalCompositeOperation = 'overlay';
+  for (let i = 0; i < width * height / 1000; i++) {
+    const x = Math.random() * width;
+    const y = Math.random() * height;
+    const size = Math.random() * 3 + 1;
+    
+    ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.1})`;
+    ctx.fillRect(x, y, size, size);
+  }
+  
   ctx.globalCompositeOperation = 'source-over';
+  
+  // Add subtle glow effect
+  ctx.shadowColor = config.foregroundColor;
+  ctx.shadowBlur = 2;
+}
+
+// Helper function to adjust color brightness
+function adjustColorBrightness(color: string, amount: number): string {
+  try {
+    const hex = color.replace('#', '');
+    const r = Math.max(0, Math.min(255, parseInt(hex.substr(0, 2), 16) + amount));
+    const g = Math.max(0, Math.min(255, parseInt(hex.substr(2, 2), 16) + amount));
+    const b = Math.max(0, Math.min(255, parseInt(hex.substr(4, 2), 16) + amount));
+    
+    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+  } catch (error) {
+    return color; // Return original color if adjustment fails
+  }
 }
 
 // Generate PDF from image data
@@ -297,10 +437,27 @@ export async function generatePDF(dataUrl: string, filename: string): Promise<st
       img.onload = () => {
         try {
           const pdf = new jsPDF();
-          const imgWidth = 190; // A4 width minus margins
-          const imgHeight = (img.height * imgWidth) / img.width;
+          const pageWidth = pdf.internal.pageSize.getWidth();
+          const pageHeight = pdf.internal.pageSize.getHeight();
           
-          pdf.addImage(dataUrl, 'PNG', 10, 10, imgWidth, imgHeight);
+          // Calculate optimal size (maintain aspect ratio, fit within page)
+          const imgAspect = img.width / img.height;
+          const maxWidth = pageWidth - 20; // 10mm margin on each side
+          const maxHeight = pageHeight - 20;
+          
+          let imgWidth = maxWidth;
+          let imgHeight = maxWidth / imgAspect;
+          
+          if (imgHeight > maxHeight) {
+            imgHeight = maxHeight;
+            imgWidth = maxHeight * imgAspect;
+          }
+          
+          // Center the image
+          const x = (pageWidth - imgWidth) / 2;
+          const y = (pageHeight - imgHeight) / 2;
+          
+          pdf.addImage(dataUrl, 'PNG', x, y, imgWidth, imgHeight);
           
           const pdfDataUrl = pdf.output('datauristring');
           resolve(pdfDataUrl);
@@ -335,16 +492,6 @@ export async function downloadQRCode(
 
     let finalDataUrl = dataUrl;
     
-    // Apply artistic effects if specified
-    if (style && style !== 'square') {
-      try {
-        finalDataUrl = await applyArtisticEffects(dataUrl, style);
-      } catch (error) {
-        console.warn('Failed to apply artistic effects, using original:', error);
-        // Continue with original dataUrl
-      }
-    }
-    
     // Handle PDF generation
     if (format === 'pdf') {
       const pdfDataUrl = await generatePDF(finalDataUrl, filename);
@@ -352,14 +499,7 @@ export async function downloadQRCode(
       return;
     }
     
-    // Handle SVG format
-    if (format === 'svg') {
-      // SVG should be handled separately in the component
-      downloadFile(finalDataUrl, filename, format);
-      return;
-    }
-    
-    // Handle PNG format (default)
+    // Handle other formats
     downloadFile(finalDataUrl, filename, format);
   } catch (error) {
     console.error('Error downloading QR code:', error);

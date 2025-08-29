@@ -27,7 +27,10 @@ export default function TemplateSelector({ templates, onSelect }: TemplateSelect
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         {templates.map((template) => {
           // Parse colors JSON string safely
-          let colors = { foreground: '#000000', background: '#ffffff' }
+          let colors: { foreground: string; background: string; accent?: string } = { 
+            foreground: '#000000', 
+            background: '#ffffff' 
+          }
           try {
             if (template.metadata.colors && typeof template.metadata.colors === 'string') {
               colors = JSON.parse(template.metadata.colors)
@@ -36,9 +39,16 @@ export default function TemplateSelector({ templates, onSelect }: TemplateSelect
             console.warn('Failed to parse template colors:', error)
           }
 
-          // Extract style value safely
-          const styleValue = template.metadata.style?.value || template.metadata.style || 'square'
-          const patternValue = template.metadata.pattern?.value || template.metadata.pattern || 'solid'
+          // FIXED: Extract style and pattern values safely with proper type checking
+          const styleValue = template.metadata.style ? 
+            (typeof template.metadata.style === 'object' && 'value' in template.metadata.style ? 
+              template.metadata.style.value : 
+              template.metadata.style) : 'square'
+
+          const patternValue = template.metadata.pattern ? 
+            (typeof template.metadata.pattern === 'object' && 'value' in template.metadata.pattern ? 
+              template.metadata.pattern.value : 
+              template.metadata.pattern) : 'solid'
 
           return (
             <button
@@ -96,7 +106,7 @@ export default function TemplateSelector({ templates, onSelect }: TemplateSelect
                   </p>
                 )}
                 
-                {/* Color Preview */}
+                {/* Color Preview - FIXED: Handle optional accent property */}
                 <div className="flex gap-1 mt-2">
                   <div 
                     className="w-3 h-3 rounded border border-gray-300"

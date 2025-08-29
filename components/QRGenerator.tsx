@@ -98,11 +98,18 @@ export default function QRGenerator({ templates, colorPalettes }: QRGeneratorPro
       console.warn('Failed to parse template colors:', error)
     }
 
+    // FIXED: Access pattern and style values safely
+    const patternValue = template.metadata.pattern ? 
+      (typeof template.metadata.pattern === 'object' && 'value' in template.metadata.pattern ? 
+        template.metadata.pattern.value : 
+        template.metadata.pattern) : 
+      undefined
+
     const newConfig = {
       ...config,
       foregroundColor: colors.foreground,
       backgroundColor: colors.background,
-      pattern: template.metadata.pattern?.value || template.metadata.pattern,
+      pattern: patternValue,
     }
     setConfig(newConfig)
   }

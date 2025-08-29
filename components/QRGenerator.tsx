@@ -60,17 +60,14 @@ export default function QRGenerator({ templates, colorPalettes }: QRGeneratorPro
       const newConfig = { ...config, text: formattedUrl }
       setConfig(newConfig)
       
-      // Debounce QR generation
-      const timeoutId = setTimeout(() => {
-        generateQR(newConfig)
-      }, 300)
-      
-      return () => clearTimeout(timeoutId)
+      // Generate QR immediately for better UX
+      generateQR(newConfig)
     } else {
       setQrDataUrl('')
       setQrSvg('')
+      setConfig({ ...config, text: '' })
     }
-  }, [url, config, generateQR])
+  }, [url, generateQR])
 
   // Handle template selection
   const handleTemplateSelect = (template: QRTemplate) => {
@@ -116,16 +113,20 @@ export default function QRGenerator({ templates, colorPalettes }: QRGeneratorPro
       
       await downloadQRCode(downloadUrl, filename, format, config.style)
       
-      // Save to history
-      await saveQRHistory({
-        url: config.text,
-        style_used: config.style,
-        colors_used: {
-          foreground: config.foregroundColor,
-          background: config.backgroundColor
-        },
-        export_format: format
-      })
+      // Save to history (don't block the download if this fails)
+      try {
+        await saveQRHistory({
+          url: config.text,
+          style_used: config.style,
+          colors_used: {
+            foreground: config.foregroundColor,
+            background: config.backgroundColor
+          },
+          export_format: format
+        })
+      } catch (error) {
+        console.warn('Failed to save to history:', error)
+      }
       
       // Clean up blob URL if created
       if (format === 'svg' && downloadUrl !== qrDataUrl) {

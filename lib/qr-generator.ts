@@ -25,8 +25,8 @@ export async function generateQRCode(config: QRCodeConfig): Promise<string> {
     let dataUrl = await QRCode.toDataURL(config.text, options);
     console.log('QR code generated successfully, data URL length:', dataUrl.length);
     
-    // Apply artistic effects based on style
-    if (config.style && config.style !== 'square') {
+    // Apply artistic effects based on style or image pattern
+    if ((config.style && config.style !== 'square') || config.foregroundImage) {
       try {
         dataUrl = await applyArtisticEffects(dataUrl, config.style, config);
       } catch (error) {
@@ -65,7 +65,7 @@ export async function generateQRCodeSVG(config: QRCodeConfig): Promise<string> {
     });
     
     // Apply SVG-specific artistic effects
-    if (config.style && config.style !== 'square') {
+    if ((config.style && config.style !== 'square') || config.foregroundImage) {
       svgString = applySVGArtisticEffects(svgString, config.style, config);
     }
     
@@ -190,7 +190,7 @@ export function dataUrlToBlob(dataUrl: string): Blob {
   }
 }
 
-// Enhanced artistic effects application for PNG/Canvas
+// Enhanced artistic effects application for PNG/Canvas with image pattern support
 export async function applyArtisticEffects(
   dataUrl: string, 
   style: string,
@@ -215,23 +215,37 @@ export async function applyArtisticEffects(
           // Apply base image
           ctx.drawImage(img, 0, 0);
 
-          // Apply style-specific effects
-          switch (style) {
-            case 'rounded':
-              applyRoundedCorners(ctx, canvas.width, canvas.height, config);
-              break;
-            case 'dots':
-              applyDotStyle(ctx, canvas.width, canvas.height, config);
-              break;
-            case 'artistic':
-              applyArtisticStyle(ctx, canvas.width, canvas.height, config);
-              break;
-            default:
-              // No special effects for 'square' style
-              break;
+          // NEW: Handle image pattern first
+          if (config.foregroundImage) {
+            applyImagePattern(ctx, canvas.width, canvas.height, config)
+              .then(() => {
+                // After image pattern, apply style effects
+                if (style && style !== 'square') {
+                  switch (style) {
+                    case 'rounded':
+                      applyRoundedCorners(ctx, canvas.width, canvas.height, config);
+                      break;
+                    case 'dots':
+                      // Skip dot style when using image pattern (conflicts with image rendering)
+                      break;
+                    case 'artistic':
+                      applyArtisticStyle(ctx, canvas.width, canvas.height, config);
+                      break;
+                  }
+                }
+                resolve(canvas.toDataURL('image/png'));
+              })
+              .catch(() => {
+                // If image pattern fails, fall back to regular effects
+                console.warn('Image pattern failed, falling back to color effects');
+                applyRegularStyleEffects(ctx, canvas.width, canvas.height, style, config);
+                resolve(canvas.toDataURL('image/png'));
+              });
+          } else {
+            // Apply regular style effects
+            applyRegularStyleEffects(ctx, canvas.width, canvas.height, style, config);
+            resolve(canvas.toDataURL('image/png'));
           }
-
-          resolve(canvas.toDataURL('image/png'));
         } catch (error) {
           console.error('Error applying artistic effects:', error);
           resolve(dataUrl); // Fall back to original
@@ -251,11 +265,156 @@ export async function applyArtisticEffects(
   });
 }
 
-// Apply SVG artistic effects
+// NEW: Apply image pattern to QR code
+async function applyImagePattern(
+  ctx: CanvasRenderingContext2D, 
+  width: number, 
+  height: number, 
+  config: QRCodeConfig
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (!config.foregroundImage) {
+      reject('No foreground image provided');
+      return;
+    }
+
+    const patternImg = new Image();
+    
+    patternImg.onload = () => {
+      try {
+        // Get current image data to determine QR pattern
+        const imageData = ctx.getImageData(0, 0, width, height);
+        const data = imageData.data;
+        
+        // Create pattern canvas
+        const patternCanvas = document.createElement('canvas');
+        const patternCtx = patternCanvas.getContext('2d');
+        if (!patternCtx) {
+          reject('Could not create pattern canvas');
+          return;
+        }
+        
+        patternCanvas.width = width;
+        patternCanvas.height = height;
+        
+        // Draw tiled pattern image
+        const patternWidth = Math.min(patternImg.width, width / 4);
+        const patternHeight = Math.min(patternImg.height, height / 4);
+        
+        for (let x = 0; x < width; x += patternWidth) {
+          for (let y = 0; y < height; y += patternHeight) {
+            patternCtx.drawImage(
+              patternImg, 
+              x, y, 
+              Math.min(patternWidth, width - x), 
+              Math.min(patternHeight, height - y)
+            );
+          }
+        }
+        
+        // Create mask from original QR code
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.clearRect(0, 0, width, height);
+        
+        // Redraw background
+        ctx.fillStyle = config.backgroundColor;
+        ctx.fillRect(0, 0, width, height);
+        
+        // Apply image pattern only where QR code modules exist
+        const moduleSize = Math.max(1, Math.floor(width / 25)); // Estimate module size
+        
+        for (let x = 0; x < width; x += moduleSize) {
+          for (let y = 0; y < height; y += moduleSize) {
+            const pixelIndex = (y * width + x) * 4;
+            
+            if (pixelIndex >= 0 && pixelIndex + 2 < data.length) {
+              const r = data[pixelIndex];
+              const g = data[pixelIndex + 1];
+              const b = data[pixelIndex + 2];
+              
+              if (typeof r === 'number' && typeof g === 'number' && typeof b === 'number') {
+                const brightness = (r + g + b) / 3;
+                
+                // If pixel is dark (part of QR code), draw pattern
+                if (brightness < 128) {
+                  ctx.drawImage(
+                    patternCanvas,
+                    x, y, moduleSize, moduleSize,
+                    x, y, moduleSize, moduleSize
+                  );
+                }
+              }
+            }
+          }
+        }
+        
+        resolve();
+      } catch (error) {
+        console.error('Error applying image pattern:', error);
+        reject(error);
+      }
+    };
+    
+    patternImg.onerror = () => {
+      reject('Failed to load pattern image');
+    };
+    
+    patternImg.src = config.foregroundImage;
+  });
+}
+
+// Regular style effects (existing functionality)
+function applyRegularStyleEffects(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  style: string,
+  config: QRCodeConfig
+): void {
+  switch (style) {
+    case 'rounded':
+      applyRoundedCorners(ctx, width, height, config);
+      break;
+    case 'dots':
+      applyDotStyle(ctx, width, height, config);
+      break;
+    case 'artistic':
+      applyArtisticStyle(ctx, width, height, config);
+      break;
+    default:
+      // No special effects for 'square' style
+      break;
+  }
+}
+
+// Apply SVG artistic effects with image pattern support
 function applySVGArtisticEffects(svgString: string, style: string, config: QRCodeConfig): string {
   try {
     let modifiedSvg = svgString;
     
+    // NEW: Handle image patterns in SVG (simplified approach)
+    if (config.foregroundImage) {
+      // For SVG, we'll create a pattern definition
+      const patternId = 'qr-image-pattern-' + Math.random().toString(36).substr(2, 9);
+      
+      const patternDef = `
+        <defs>
+          <pattern id="${patternId}" patternUnits="userSpaceOnUse" width="20" height="20">
+            <image href="${config.foregroundImage}" x="0" y="0" width="20" height="20" preserveAspectRatio="xMidYMid slice"/>
+          </pattern>
+        </defs>
+      `;
+      
+      modifiedSvg = modifiedSvg.replace('<svg', patternDef + '<svg');
+      modifiedSvg = modifiedSvg.replace(
+        /fill="([^"]*)" /g,
+        `fill="url(#${patternId})" `
+      );
+      
+      return modifiedSvg; // Return early for image patterns
+    }
+    
+    // Regular style effects for SVG
     switch (style) {
       case 'rounded':
         // Add rounded corners to SVG rectangles

@@ -67,7 +67,7 @@ interface QRHistory extends CosmicObject {
 
 // Type literals for select-dropdown values
 type QRStyle = 'square' | 'rounded' | 'dots' | 'artistic';
-type QRPattern = 'solid' | 'gradient' | 'dots' | 'lines';
+type QRPattern = 'solid' | 'gradient' | 'dots' | 'lines' | 'image';
 type PaletteCategory = 'vibrant' | 'pastel' | 'monochrome' | 'nature' | 'sunset';
 type ExportFormat = 'png' | 'svg' | 'pdf';
 
@@ -81,6 +81,10 @@ interface QRCodeConfig {
   pattern?: QRPattern | string;
   logoUrl?: string;
   margin: number;
+  // NEW: Image upload support
+  foregroundImage?: string; // Data URL of uploaded image
+  imageBlendMode?: 'normal' | 'multiply' | 'overlay' | 'screen';
+  imageOpacity?: number; // 0-1 opacity for the image
 }
 
 // API response types
@@ -109,11 +113,15 @@ interface TemplateCardProps {
 }
 
 interface ColorPickerProps {
-  colors: string[];
+  colorPalettes: ColorPalette[];
   selectedForeground: string;
   selectedBackground: string;
   onForegroundChange: (color: string) => void;
   onBackgroundChange: (color: string) => void;
+  // NEW: Image upload support
+  onImageUpload?: (imageDataUrl: string) => void;
+  onImageRemove?: () => void;
+  foregroundImage?: string;
 }
 
 // Type guards

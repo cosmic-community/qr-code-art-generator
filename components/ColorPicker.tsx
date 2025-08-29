@@ -1,110 +1,252 @@
 'use client'
 
-import type { ColorPalette } from '@/types'
+import { useState, useRef } from 'react'
+import type { ColorPalette, ColorPickerProps } from '@/types'
 
-interface ColorPickerProps {
-  colorPalettes: ColorPalette[];
-  selectedForeground: string;
-  selectedBackground: string;
-  onForegroundChange: (color: string) => void;
-  onBackgroundChange: (color: string) => void;
-}
-
-export default function ColorPicker({
+export default function ColorPicker({ 
   colorPalettes,
   selectedForeground,
   selectedBackground,
   onForegroundChange,
-  onBackgroundChange
+  onBackgroundChange,
+  onImageUpload,
+  onImageRemove,
+  foregroundImage
 }: ColorPickerProps) {
-  // Default colors if no palettes provided
-  const defaultColors = [
-    '#000000', '#ffffff', '#6366f1', '#ef4444', '#10b981', 
-    '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'
-  ]
+  const [activeColorType, setActiveColorType] = useState<'foreground' | 'background'>('foreground')
+  const [customForeground, setCustomForeground] = useState(selectedForeground)
+  const [customBackground, setCustomBackground] = useState(selectedBackground)
+  const [imagePreviewError, setImagePreviewError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Get all colors from palettes with proper JSON parsing
-  const allColors = colorPalettes.reduce<string[]>((acc, palette) => {
-    if (palette.metadata.colors) {
-      try {
-        let colors: string[] = []
-        
-        // Handle both JSON string and array formats
-        if (typeof palette.metadata.colors === 'string') {
-          colors = JSON.parse(palette.metadata.colors)
-        } else if (Array.isArray(palette.metadata.colors)) {
-          colors = palette.metadata.colors
-        }
-        
-        if (Array.isArray(colors)) {
-          return [...acc, ...colors]
-        }
-      } catch (error) {
-        console.warn('Failed to parse palette colors:', error)
+  // Handle custom color input changes
+  const handleCustomColorChange = (type: 'foreground' | 'background', value: string) => {
+    if (type === 'foreground') {
+      setCustomForeground(value)
+      onForegroundChange(value)
+    } else {
+      setCustomBackground(value)
+      onBackgroundChange(value)
+    }
+  }
+
+  // Handle palette color selection
+  const handlePaletteColorSelect = (color: string) => {
+    if (activeColorType === 'foreground') {
+      setCustomForeground(color)
+      onForegroundChange(color)
+    } else {
+      setCustomBackground(color)
+      onBackgroundChange(color)
+    }
+  }
+
+  // Handle image upload
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setImagePreviewError('Please select a valid image file')
+      return
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setImagePreviewError('Image size must be less than 5MB')
+      return
+    }
+
+    setImagePreviewError(null)
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const result = e.target?.result as string
+      if (result && onImageUpload) {
+        onImageUpload(result)
       }
     }
-    return acc
-  }, defaultColors)
+    reader.onerror = () => {
+      setImagePreviewError('Failed to read image file')
+    }
+    reader.readAsDataURL(file)
+  }
 
-  // Remove duplicates
-  const uniqueColors = [...new Set(allColors)]
+  // Handle image removal
+  const handleImageRemove = () => {
+    if (onImageRemove) {
+      onImageRemove()
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+    setImagePreviewError(null)
+  }
+
+  // Trigger file input
+  const triggerFileInput = () => {
+    fileInputRef.current?.click()
+  }
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-6">
-      <h3 className="text-lg font-semibold mb-4">Customize Colors</h3>
+      <h3 className="text-lg font-semibold mb-4">Customize Colors & Patterns</h3>
       
-      {/* Current Selection Display */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+      {/* Color Type Selector */}
+      <div className="mb-6">
+        <div className="flex bg-gray-100 rounded-lg p-1 mb-4">
+          <button
+            onClick={() => setActiveColorType('foreground')}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+              activeColorType === 'foreground'
+                ? 'bg-white shadow-sm text-primary'
+                : 'text-gray-600 hover:text-gray-800'
+            }`}
+          >
             Foreground (QR Pattern)
-          </label>
-          <div className="flex items-center gap-2">
-            <div 
-              className="w-8 h-8 rounded border-2 border-gray-300"
-              style={{ backgroundColor: selectedForeground }}
-            />
-            <input
-              type="color"
-              value={selectedForeground}
-              onChange={(e) => onForegroundChange(e.target.value)}
-              className="w-8 h-8 rounded border-2 border-gray-300 cursor-pointer"
-            />
-            <span className="text-sm font-mono text-gray-600">
-              {selectedForeground}
-            </span>
-          </div>
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          </button>
+          <button
+            onClick={() => setActiveColorType('background')}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+              activeColorType === 'background'
+                ? 'bg-white shadow-sm text-primary'
+                : 'text-gray-600 hover:text-gray-800'
+            }`}
+          >
             Background
-          </label>
+          </button>
+        </div>
+
+        {/* Current Selection Preview */}
+        <div className="flex items-center gap-4 mb-4">
           <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Current:</span>
             <div 
               className="w-8 h-8 rounded border-2 border-gray-300"
-              style={{ backgroundColor: selectedBackground }}
+              style={{ 
+                backgroundColor: activeColorType === 'foreground' ? selectedForeground : selectedBackground 
+              }}
             />
-            <input
-              type="color"
-              value={selectedBackground}
-              onChange={(e) => onBackgroundChange(e.target.value)}
-              className="w-8 h-8 rounded border-2 border-gray-300 cursor-pointer"
-            />
-            <span className="text-sm font-mono text-gray-600">
-              {selectedBackground}
+            <span className="text-sm font-mono">
+              {activeColorType === 'foreground' ? selectedForeground : selectedBackground}
             </span>
           </div>
         </div>
       </div>
-      
-      {/* Color Palette Sections */}
+
+      {/* Image Upload Section (only for foreground) */}
+      {activeColorType === 'foreground' && onImageUpload && (
+        <div className="mb-6 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200">
+          <h4 className="text-sm font-semibold text-purple-800 mb-3 flex items-center gap-2">
+            <span>🎨</span>
+            Upload Pattern Image
+          </h4>
+          <p className="text-sm text-purple-700 mb-4">
+            Upload an image to fill the QR code pattern instead of using a solid color
+          </p>
+
+          {!foregroundImage ? (
+            <div className="text-center">
+              <button
+                onClick={triggerFileInput}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Choose Image
+              </button>
+              <p className="text-xs text-purple-600 mt-2">
+                Supports JPG, PNG, GIF • Max 5MB
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {/* Image Preview */}
+              <div className="relative">
+                <img 
+                  src={foregroundImage} 
+                  alt="Pattern preview"
+                  className="w-full h-20 object-cover rounded-lg border"
+                />
+                <button
+                  onClick={handleImageRemove}
+                  className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-sm hover:bg-red-600 transition-colors"
+                  title="Remove image"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Replace Button */}
+              <div className="flex gap-2">
+                <button
+                  onClick={triggerFileInput}
+                  className="flex-1 px-3 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-sm"
+                >
+                  Replace Image
+                </button>
+                <button
+                  onClick={handleImageRemove}
+                  className="px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm"
+                >
+                  Use Color Instead
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Error Message */}
+          {imagePreviewError && (
+            <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+              {imagePreviewError}
+            </div>
+          )}
+
+          {/* Hidden File Input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageUpload}
+            className="hidden"
+          />
+        </div>
+      )}
+
+      {/* Custom Color Input */}
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Custom {activeColorType === 'foreground' ? 'Foreground' : 'Background'} Color
+        </label>
+        <div className="flex gap-2">
+          <input
+            type="color"
+            value={activeColorType === 'foreground' ? customForeground : customBackground}
+            onChange={(e) => handleCustomColorChange(activeColorType, e.target.value)}
+            className="w-12 h-10 border border-gray-300 rounded cursor-pointer"
+          />
+          <input
+            type="text"
+            value={activeColorType === 'foreground' ? customForeground : customBackground}
+            onChange={(e) => handleCustomColorChange(activeColorType, e.target.value)}
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent font-mono text-sm"
+            placeholder="#000000"
+          />
+        </div>
+      </div>
+
+      {/* Color Palettes */}
       {colorPalettes.length > 0 && (
         <div className="space-y-4">
+          <h4 className="text-sm font-medium text-gray-700">
+            Quick {activeColorType === 'foreground' ? 'Foreground' : 'Background'} Colors
+          </h4>
+          
           {colorPalettes.map((palette) => {
+            // Parse colors safely
             let colors: string[] = []
-            
-            // Parse colors with proper error handling
             try {
               if (typeof palette.metadata.colors === 'string') {
                 colors = JSON.parse(palette.metadata.colors)
@@ -113,37 +255,49 @@ export default function ColorPicker({
               }
             } catch (error) {
               console.warn('Failed to parse palette colors:', error)
-              return null
             }
-            
-            if (!Array.isArray(colors) || colors.length === 0) {
-              return null
-            }
-            
+
+            if (!colors || colors.length === 0) return null
+
+            // Get category value safely
+            const categoryValue = palette.metadata.category ? 
+              (typeof palette.metadata.category === 'object' && 'value' in palette.metadata.category ? 
+                palette.metadata.category.value : 
+                palette.metadata.category) : 
+              'unknown'
+
             return (
-              <div key={palette.id}>
-                <h4 className="text-sm font-medium text-gray-700 mb-2 capitalize">
-                  {palette.title}
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {colors.map((color, index) => (
-                    <div key={`${palette.id}-${index}`} className="flex flex-col gap-1">
-                      <button
-                        onClick={() => onForegroundChange(color)}
-                        className={`color-swatch ${
-                          selectedForeground === color ? 'selected' : ''
-                        }`}
-                        style={{ backgroundColor: color }}
-                        title={`Use ${color} as foreground`}
-                      />
-                      <button
-                        onClick={() => onBackgroundChange(color)}
-                        className="text-xs bg-gray-100 hover:bg-gray-200 px-1 py-0.5 rounded transition-colors duration-200"
-                        title={`Use ${color} as background`}
-                      >
-                        BG
-                      </button>
-                    </div>
+              <div key={palette.id} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h5 className="text-sm font-medium text-gray-800">
+                    {palette.title}
+                  </h5>
+                  <span className="text-xs text-gray-500 capitalize bg-gray-100 px-2 py-1 rounded">
+                    {categoryValue}
+                  </span>
+                </div>
+                
+                {palette.metadata.description && (
+                  <p className="text-xs text-gray-500 mb-2">
+                    {palette.metadata.description}
+                  </p>
+                )}
+                
+                <div className="grid grid-cols-8 gap-1">
+                  {colors.map((color, colorIndex) => (
+                    <button
+                      key={colorIndex}
+                      onClick={() => handlePaletteColorSelect(color)}
+                      className={`
+                        w-8 h-8 rounded border-2 transition-all hover:scale-110
+                        ${(activeColorType === 'foreground' ? selectedForeground : selectedBackground) === color 
+                          ? 'border-gray-800 shadow-lg' 
+                          : 'border-gray-200 hover:border-gray-400'
+                        }
+                      `}
+                      style={{ backgroundColor: color }}
+                      title={color}
+                    />
                   ))}
                 </div>
               </div>
@@ -151,47 +305,22 @@ export default function ColorPicker({
           })}
         </div>
       )}
-      
-      {/* Quick Color Swatches */}
-      <div className="mt-6">
-        <h4 className="text-sm font-medium text-gray-700 mb-2">Quick Colors</h4>
-        <div className="flex flex-wrap gap-2">
-          {uniqueColors.slice(0, 12).map((color, index) => (
-            <div key={index} className="flex flex-col gap-1">
-              <button
-                onClick={() => onForegroundChange(color)}
-                className={`color-swatch ${
-                  selectedForeground === color ? 'selected' : ''
-                }`}
-                style={{ backgroundColor: color }}
-                title={`Use ${color} as foreground`}
-              />
-              <button
-                onClick={() => onBackgroundChange(color)}
-                className="text-xs bg-gray-100 hover:bg-gray-200 px-1 py-0.5 rounded transition-colors duration-200"
-                title={`Use ${color} as background`}
-              >
-                BG
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-      
-      {/* Contrast Warning */}
-      <div className="mt-4">
-        {selectedForeground === selectedBackground && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-            <div className="flex items-center">
-              <svg className="w-5 h-5 text-yellow-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-              </svg>
-              <p className="text-sm text-yellow-800">
-                Warning: Foreground and background colors are the same. QR code may not be scannable.
-              </p>
-            </div>
+
+      {/* Tips */}
+      <div className="mt-6 p-3 bg-blue-50 rounded-lg">
+        <div className="flex items-start gap-2">
+          <svg className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div className="text-sm text-blue-700">
+            <p className="font-medium mb-1">Color Tips:</p>
+            <ul className="text-xs space-y-1">
+              <li>• Ensure good contrast between foreground and background</li>
+              <li>• Upload high-contrast images for better QR code readability</li>
+              <li>• Test your QR codes with different scanning apps</li>
+            </ul>
           </div>
-        )}
+        </div>
       </div>
     </div>
   )

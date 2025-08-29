@@ -29,6 +29,10 @@ export default function QRGenerator({ templates, colorPalettes }: QRGeneratorPro
     backgroundColor: '#ffffff',
     style: 'square',
     margin: 2,
+    // NEW: Image-related properties
+    foregroundImage: undefined,
+    imageBlendMode: 'normal',
+    imageOpacity: 1.0,
   })
 
   // Debounced QR code generation with better error handling
@@ -110,6 +114,8 @@ export default function QRGenerator({ templates, colorPalettes }: QRGeneratorPro
       foregroundColor: colors.foreground,
       backgroundColor: colors.background,
       pattern: patternValue,
+      // Clear any existing image when selecting a template
+      foregroundImage: undefined,
     }
     setConfig(newConfig)
   }
@@ -119,6 +125,26 @@ export default function QRGenerator({ templates, colorPalettes }: QRGeneratorPro
     const newConfig = {
       ...config,
       [type === 'foreground' ? 'foregroundColor' : 'backgroundColor']: color
+    }
+    setConfig(newConfig)
+  }
+
+  // NEW: Handle image upload
+  const handleImageUpload = (imageDataUrl: string) => {
+    const newConfig = {
+      ...config,
+      foregroundImage: imageDataUrl,
+      pattern: 'image' // Set pattern to image when uploading
+    }
+    setConfig(newConfig)
+  }
+
+  // NEW: Handle image removal
+  const handleImageRemove = () => {
+    const newConfig = {
+      ...config,
+      foregroundImage: undefined,
+      pattern: 'solid' // Reset to solid pattern
     }
     setConfig(newConfig)
   }
@@ -288,7 +314,7 @@ export default function QRGenerator({ templates, colorPalettes }: QRGeneratorPro
                 Customize Your QR Code
               </h2>
               <p className="text-gray-600">
-                Fine-tune colors and templates to match your brand
+                Fine-tune colors, templates, and patterns to match your brand
               </p>
             </div>
 
@@ -303,7 +329,7 @@ export default function QRGenerator({ templates, colorPalettes }: QRGeneratorPro
                   />
                 )}
 
-                {/* Color Picker */}
+                {/* Color Picker with Image Upload */}
                 {colorPalettes.length > 0 && (
                   <ColorPicker
                     colorPalettes={colorPalettes}
@@ -311,6 +337,9 @@ export default function QRGenerator({ templates, colorPalettes }: QRGeneratorPro
                     selectedBackground={config.backgroundColor}
                     onForegroundChange={(color) => handleColorChange('foreground', color)}
                     onBackgroundChange={(color) => handleColorChange('background', color)}
+                    onImageUpload={handleImageUpload}
+                    onImageRemove={handleImageRemove}
+                    foregroundImage={config.foregroundImage}
                   />
                 )}
               </div>
@@ -322,18 +351,39 @@ export default function QRGenerator({ templates, colorPalettes }: QRGeneratorPro
                   <div className="inline-block p-4 bg-gray-50 rounded-lg">
                     <div className="text-sm text-gray-500 mb-2">
                       Style: {config.style}
+                      {config.foregroundImage && ' • Image Pattern'}
                     </div>
-                    <div className="w-32 h-32 mx-auto bg-gray-200 rounded flex items-center justify-center text-gray-500 text-xs">
-                      QR Preview
-                      <br />
-                      ({config.style})
+                    <div className="w-32 h-32 mx-auto bg-gray-200 rounded flex items-center justify-center text-gray-500 text-xs relative">
+                      {config.foregroundImage ? (
+                        <div className="text-center">
+                          <img 
+                            src={config.foregroundImage} 
+                            alt="Pattern" 
+                            className="w-8 h-8 mx-auto mb-1 opacity-60 object-cover rounded"
+                          />
+                          <div>Image Pattern</div>
+                          <div>({config.style})</div>
+                        </div>
+                      ) : (
+                        <>
+                          QR Preview
+                          <br />
+                          ({config.style})
+                        </>
+                      )}
                     </div>
                     <div className="flex justify-center gap-2 mt-2">
-                      <div 
-                        className="w-4 h-4 rounded border"
-                        style={{ backgroundColor: config.foregroundColor }}
-                        title="Foreground"
-                      />
+                      {config.foregroundImage ? (
+                        <div className="text-xs text-gray-500 flex items-center gap-1">
+                          <span>🎨</span> Image Pattern
+                        </div>
+                      ) : (
+                        <div 
+                          className="w-4 h-4 rounded border"
+                          style={{ backgroundColor: config.foregroundColor }}
+                          title="Foreground"
+                        />
+                      )}
                       <div 
                         className="w-4 h-4 rounded border"
                         style={{ backgroundColor: config.backgroundColor }}
@@ -391,17 +441,37 @@ export default function QRGenerator({ templates, colorPalettes }: QRGeneratorPro
                     <span className="capitalize">{config.style}</span>
                   </div>
                   <div className="flex justify-between">
+                    <span className="text-gray-600">Pattern:</span>
+                    <span className="capitalize flex items-center gap-1">
+                      {config.foregroundImage ? (
+                        <>
+                          <span>🎨</span> Image Pattern
+                        </>
+                      ) : (
+                        'Solid Color'
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-gray-600">Size:</span>
                     <span>{config.size}x{config.size}px</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Colors:</span>
-                    <div className="flex gap-1">
-                      <div 
-                        className="w-4 h-4 rounded border border-gray-300"
-                        style={{ backgroundColor: config.foregroundColor }}
-                        title={`Foreground: ${config.foregroundColor}`}
-                      />
+                    <div className="flex gap-1 items-center">
+                      {config.foregroundImage ? (
+                        <img 
+                          src={config.foregroundImage} 
+                          alt="Pattern" 
+                          className="w-4 h-4 rounded border border-gray-300 object-cover" 
+                        />
+                      ) : (
+                        <div 
+                          className="w-4 h-4 rounded border border-gray-300"
+                          style={{ backgroundColor: config.foregroundColor }}
+                          title={`Foreground: ${config.foregroundColor}`}
+                        />
+                      )}
                       <div 
                         className="w-4 h-4 rounded border border-gray-300"
                         style={{ backgroundColor: config.backgroundColor }}
@@ -444,6 +514,9 @@ export default function QRGenerator({ templates, colorPalettes }: QRGeneratorPro
                   backgroundColor: '#ffffff',
                   style: 'square',
                   margin: 2,
+                  foregroundImage: undefined,
+                  imageBlendMode: 'normal',
+                  imageOpacity: 1.0,
                 })
               }}
               className="text-primary hover:text-primary-dark transition-colors"

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import type { QRTemplate, ColorPalette, QRCodeConfig, QRGeneratorProps, ExportFormat } from '@/types'
-import { generateQRCode, generateQRCodeSVG, isValidUrl, formatUrl, downloadFile } from '@/lib/qr-generator'
+import { generateQRCode, generateQRCodeSVG, isValidUrl, formatUrl, downloadQRCode } from '@/lib/qr-generator'
 import { saveQRHistory } from '@/lib/cosmic'
 import QRPreview from './QRPreview'
 import TemplateSelector from './TemplateSelector'
@@ -114,7 +114,7 @@ export default function QRGenerator({ templates, colorPalettes }: QRGeneratorPro
         downloadUrl = URL.createObjectURL(blob)
       }
       
-      downloadFile(downloadUrl, filename, format)
+      await downloadQRCode(downloadUrl, filename, format, config.style)
       
       // Save to history
       await saveQRHistory({

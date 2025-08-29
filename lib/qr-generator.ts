@@ -366,12 +366,15 @@ function applyDotStyle(ctx: CanvasRenderingContext2D, width: number, height: num
       const g = data[pixelIndex + 1];
       const b = data[pixelIndex + 2];
       
-      // If pixel is dark (part of QR code)
-      const brightness = (r + g + b) / 3;
-      if (brightness < 128) {
-        ctx.beginPath();
-        ctx.arc(x + dotSize/2, y + dotSize/2, dotSize/2, 0, Math.PI * 2);
-        ctx.fill();
+      // Check if r, g, b are defined before using them
+      if (r !== undefined && g !== undefined && b !== undefined) {
+        // If pixel is dark (part of QR code)
+        const brightness = (r + g + b) / 3;
+        if (brightness < 128) {
+          ctx.beginPath();
+          ctx.arc(x + dotSize/2, y + dotSize/2, dotSize/2, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
     }
   }
@@ -416,9 +419,20 @@ function applyArtisticStyle(ctx: CanvasRenderingContext2D, width: number, height
 function adjustColorBrightness(color: string, amount: number): string {
   try {
     const hex = color.replace('#', '');
-    const r = Math.max(0, Math.min(255, parseInt(hex.substr(0, 2), 16) + amount));
-    const g = Math.max(0, Math.min(255, parseInt(hex.substr(2, 2), 16) + amount));
-    const b = Math.max(0, Math.min(255, parseInt(hex.substr(4, 2), 16) + amount));
+    
+    // Ensure we have valid hex values and handle potential NaN
+    const rHex = hex.substr(0, 2);
+    const gHex = hex.substr(2, 2);
+    const bHex = hex.substr(4, 2);
+    
+    const rParsed = parseInt(rHex, 16);
+    const gParsed = parseInt(gHex, 16);
+    const bParsed = parseInt(bHex, 16);
+    
+    // Check if parsing was successful (not NaN)
+    const r = isNaN(rParsed) ? 0 : Math.max(0, Math.min(255, rParsed + amount));
+    const g = isNaN(gParsed) ? 0 : Math.max(0, Math.min(255, gParsed + amount));
+    const b = isNaN(bParsed) ? 0 : Math.max(0, Math.min(255, bParsed + amount));
     
     return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
   } catch (error) {

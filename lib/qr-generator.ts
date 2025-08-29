@@ -340,7 +340,7 @@ function applyRoundedCorners(ctx: CanvasRenderingContext2D, width: number, heigh
   ctx.shadowOffsetY = 2;
 }
 
-// Enhanced dot style effect with proper undefined checks
+// Enhanced dot style effect with proper undefined checks - FIXED
 function applyDotStyle(ctx: CanvasRenderingContext2D, width: number, height: number, config: QRCodeConfig): void {
   // Get image data to analyze QR pattern
   const imageData = ctx.getImageData(0, 0, width, height);
@@ -369,8 +369,8 @@ function applyDotStyle(ctx: CanvasRenderingContext2D, width: number, height: num
         const g = data[pixelIndex + 1];
         const b = data[pixelIndex + 2];
         
-        // Check if r, g, b are defined before using them
-        if (r !== undefined && g !== undefined && b !== undefined) {
+        // Check if r, g, b are defined before using them - TYPESCRIPT FIX
+        if (typeof r === 'number' && typeof g === 'number' && typeof b === 'number') {
           // If pixel is dark (part of QR code)
           const brightness = (r + g + b) / 3;
           if (brightness < 128) {

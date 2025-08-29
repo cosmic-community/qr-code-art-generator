@@ -14,13 +14,13 @@ interface CosmicObject {
 interface QRTemplate extends CosmicObject {
   type: 'qr-templates';
   metadata: {
-    colors: {
+    colors: string | {
       foreground: string;
       background: string;
       accent?: string;
     };
-    style: QRStyle;
-    pattern?: QRPattern;
+    style: QRStyle | { key: string; value: QRStyle };
+    pattern?: QRPattern | { key: string; value: QRPattern };
     description?: string;
     preview_image?: {
       url: string;
@@ -33,8 +33,8 @@ interface QRTemplate extends CosmicObject {
 interface ColorPalette extends CosmicObject {
   type: 'color-palettes';
   metadata: {
-    colors: string[];
-    category: PaletteCategory;
+    colors: string | string[];
+    category: PaletteCategory | { key: string; value: PaletteCategory };
     description?: string;
   };
 }
@@ -78,7 +78,7 @@ interface QRCodeConfig {
   foregroundColor: string;
   backgroundColor: string;
   style: QRStyle;
-  pattern?: QRPattern;
+  pattern?: QRPattern | string;
   logoUrl?: string;
   margin: number;
 }

@@ -23,10 +23,25 @@ export default function ColorPicker({
     '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'
   ]
 
-  // Get all colors from palettes
+  // Get all colors from palettes with proper JSON parsing
   const allColors = colorPalettes.reduce<string[]>((acc, palette) => {
-    if (palette.metadata.colors && Array.isArray(palette.metadata.colors)) {
-      return [...acc, ...palette.metadata.colors]
+    if (palette.metadata.colors) {
+      try {
+        let colors: string[] = []
+        
+        // Handle both JSON string and array formats
+        if (typeof palette.metadata.colors === 'string') {
+          colors = JSON.parse(palette.metadata.colors)
+        } else if (Array.isArray(palette.metadata.colors)) {
+          colors = palette.metadata.colors
+        }
+        
+        if (Array.isArray(colors)) {
+          return [...acc, ...colors]
+        }
+      } catch (error) {
+        console.warn('Failed to parse palette colors:', error)
+      }
     }
     return acc
   }, defaultColors)
@@ -87,7 +102,21 @@ export default function ColorPicker({
       {colorPalettes.length > 0 && (
         <div className="space-y-4">
           {colorPalettes.map((palette) => {
-            if (!palette.metadata.colors || !Array.isArray(palette.metadata.colors)) {
+            let colors: string[] = []
+            
+            // Parse colors with proper error handling
+            try {
+              if (typeof palette.metadata.colors === 'string') {
+                colors = JSON.parse(palette.metadata.colors)
+              } else if (Array.isArray(palette.metadata.colors)) {
+                colors = palette.metadata.colors
+              }
+            } catch (error) {
+              console.warn('Failed to parse palette colors:', error)
+              return null
+            }
+            
+            if (!Array.isArray(colors) || colors.length === 0) {
               return null
             }
             
@@ -97,7 +126,7 @@ export default function ColorPicker({
                   {palette.title}
                 </h4>
                 <div className="flex flex-wrap gap-2">
-                  {palette.metadata.colors.map((color, index) => (
+                  {colors.map((color, index) => (
                     <div key={`${palette.id}-${index}`} className="flex flex-col gap-1">
                       <button
                         onClick={() => onForegroundChange(color)}
